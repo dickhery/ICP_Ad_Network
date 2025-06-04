@@ -1,0 +1,28 @@
+{
+  "canisters": {
+    "ad_network_backend": {
+      "main": "src/ad_network_backend/main.mo",
+      "type": "motoko",
+      "dependencies": [
+        "icp_transfer_backend"
+      ]
+    },
+    "icp_transfer_backend": {
+      "type": "custom",
+      "candid": "src/icp_transfer_backend/icp_transfer_backend.did",
+      "wasm": "src/icp_transfer_backend/icp_transfer_backend.wasm",
+      "remote": {
+        "id": {
+          "ic": "j24mu-2qaaa-aaaal-aae5a-cai"
+        }
+      }
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "version": 1
+}

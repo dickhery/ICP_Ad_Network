@@ -1,0 +1,195 @@
+<!-- ad-network-example/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ICP Ad Network Minimal Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .layout {
+      display: none; /* We toggle these on/off to simulate multiple screens. */
+    }
+    .visible {
+      display: block;
+    }
+    #layout1, #layout2 {
+      border: 2px solid #ccc;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    #ad-image {
+      max-width: 100%;
+      height: auto;
+    }
+    #status-message {
+      margin-top: 20px;
+      color: green;
+    }
+    #error-message {
+      margin-top: 20px;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>ICP Ad Network Minimal Example</h1>
+
+  <!-- Layout 1: main screen -->
+  <div id="layout1" class="layout visible">
+    <p>Welcome to the Ad Network Example! Click "Go to Ad Layout" to fetch and display an ad.</p>
+    <button id="go-to-ad-layout">Go to Ad Layout</button>
+  </div>
+
+  <!-- Layout 2: ad screen -->
+  <div id="layout2" class="layout">
+    <h2>Ad Layout (must stay 5s for a view to count)</h2>
+    <button id="fetch-ad-button">Fetch Ad</button>
+    <button id="back-button">Back to Main Layout</button>
+
+    <div id="ad-container" style="display: none; margin-top:20px;">
+      <a id="ad-link" href="#" target="_blank">
+        <img id="ad-image" src="" alt="Ad Image">
+      </a>
+    </div>
+
+    <div id="status-message"></div>
+    <div id="error-message"></div>
+  </div>
+
+  <!-- Minimal Ad Network API bundle -->
+  <script src="./js/ad-network-api.bundle.js"></script>
+
+  <script>
+    /*******************************************************
+     * Minimal Example Script
+     *******************************************************/
+    (function() {
+      // Short references:
+      const api = window.AdNetworkAPI; // from ad-network-api.bundle.js
+
+      const layout1 = document.getElementById("layout1");
+      const layout2 = document.getElementById("layout2");
+      const fetchAdButton = document.getElementById("fetch-ad-button");
+      const backButton = document.getElementById("back-button");
+      const adContainer = document.getElementById("ad-container");
+      const adImage = document.getElementById("ad-image");
+      const adLink = document.getElementById("ad-link");
+
+      const statusDiv = document.getElementById("status-message");
+      const errorDiv = document.getElementById("error-message");
+
+      let adViewTimeoutId = null;
+      let currentTokenId = null;
+
+      // Display or hide layouts
+      function showLayout1() {
+        layout1.classList.add("visible");
+        layout2.classList.remove("visible");
+      }
+      function showLayout2() {
+        layout1.classList.remove("visible");
+        layout2.classList.add("visible");
+      }
+
+      function displayStatus(msg) {
+        statusDiv.textContent = msg;
+        errorDiv.textContent = ""; // clear error
+      }
+      function displayError(msg) {
+        errorDiv.textContent = msg;
+        statusDiv.textContent = ""; // clear status
+      }
+
+      // Cancel the 5-sec timer
+      function cancelAdTimeout() {
+        if (adViewTimeoutId !== null) {
+          clearTimeout(adViewTimeoutId);
+          adViewTimeoutId = null;
+          displayStatus("Ad view canceled: user left before 5 seconds.");
+        }
+      }
+
+      // =========== Layout 1 => "Go to Ad Layout" ===========
+      document.getElementById("go-to-ad-layout").addEventListener("click", () => {
+        showLayout2();
+      });
+
+      // =========== Layout 2 => fetch ad logic ===========
+      fetchAdButton.addEventListener("click", async () => {
+        try {
+          cancelAdTimeout(); // if there's a leftover
+          displayStatus("Fetching ad...");
+          adContainer.style.display = "none";
+          adImage.src = "";
+          adLink.href = "#";
+          currentTokenId = null;
+
+          // 1) Minimal: init actor anonymously
+          await api.initActorUnauthenticated();
+
+          // 2) getNextAd => returns ?(Ad, Nat)
+          const projectId = "ExampleProject";
+          const adType = "Horizontal Banner Portrait"; 
+          const result = await api.getNextAd(projectId, adType);
+
+          if (!result || result.length === 0) {
+            displayError("No available ads. Possibly all used up?");
+            return;
+          }
+          const [ad, tokenId] = result; 
+          if (!ad) {
+            displayError("No ad object returned.");
+            return;
+          }
+
+          // Update DOM
+          adLink.href = ad.clickUrl;
+          adImage.src = `data:image/png;base64,${ad.imageBase64}`;
+          adContainer.style.display = "block";
+          displayStatus(`Fetched Ad #${ad.id}, tokenId=${tokenId}`);
+
+          currentTokenId = tokenId;
+
+          // Start 5-sec timer
+          adViewTimeoutId = setTimeout(async () => {
+            // Ensure token still valid
+            if (!currentTokenId) {
+              return; // canceled or some error
+            }
+            try {
+              const success = await api.recordViewWithToken(currentTokenId);
+              if (success) {
+                displayStatus(`View for Ad #${ad.id} counted! (token ${currentTokenId})`);
+              } else {
+                displayError(`View NOT counted (maybe too soon or invalid token).`);
+              }
+            } catch(err) {
+              console.error("recordViewWithToken error:", err);
+              displayError("Error recording ad view: " + err.message);
+            }
+            adViewTimeoutId = null;
+            currentTokenId = null;
+          }, 5000);
+
+        } catch (err) {
+          console.error("fetchAd error:", err);
+          displayError("Error fetching ad: " + err.message);
+        }
+      });
+
+      // =========== "Back to Main Layout" => user cancels ad view if <5s ===========
+      backButton.addEventListener("click", () => {
+        cancelAdTimeout(); 
+        showLayout1();
+      });
+
+      // Show layout1 at start
+      showLayout1();
+      displayStatus("Welcome to the Minimal ICP Ad Example!");
+    })();
+  </script>
+</body>
+</html>

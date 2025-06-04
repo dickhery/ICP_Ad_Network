@@ -1,0 +1,180 @@
+<!-- ad-network-example/ad-network-api.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ICP Ad Network API (Minimal)</title>
+  <style>
+    /* Basic styling for the example layout */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #ad-container {
+      margin-top: 20px;
+      display: none; /* hidden until we fetch an ad */
+    }
+    #ad-image {
+      max-width: 100%;
+      height: auto;
+    }
+    #status-message {
+      margin-top: 20px;
+      color: green;
+    }
+    #error-message {
+      margin-top: 20px;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>Minimal ICP Ad Network Integration</h1>
+
+  <!-- 
+    This example demonstrates the absolute bare minimum needed to
+    fetch an ad, display it, wait 5 seconds, and call recordViewWithToken.
+  -->
+
+  <!-- 
+    A button for the user to fetch an ad:
+  -->
+  <button id="fetch-ad-button">Fetch & Display Ad</button>
+
+  <!-- 
+    The container for the ad itself:
+  -->
+  <div id="ad-container">
+    <a id="ad-link" href="#" target="_blank">
+      <img id="ad-image" src="" alt="Ad Image">
+    </a>
+  </div>
+
+  <!-- 
+    Status & error messages:
+  -->
+  <div id="status-message"></div>
+  <div id="error-message"></div>
+
+  <!-- 
+    We include the minimal ad-network-api.bundle.js
+    which must define AdNetworkAPI with:
+      initActorUnauthenticated(), getNextAd(), recordViewWithToken()
+  -->
+  <script src="./js/ad-network-api.bundle.js"></script>
+  <script>
+    (function() {
+      // Grab a reference to the minimal API
+      const api = window.AdNetworkAPI;
+
+      // DOM references
+      const fetchAdButton = document.getElementById("fetch-ad-button");
+      const adContainer = document.getElementById("ad-container");
+      const adLink = document.getElementById("ad-link");
+      const adImage = document.getElementById("ad-image");
+      const statusDiv = document.getElementById("status-message");
+      const errorDiv = document.getElementById("error-message");
+
+      // We store the setTimeout ID here, in case we want to cancel if user leaves
+      let adViewTimeoutId = null;
+      let currentTokenId = null;
+
+      function displayStatus(msg) {
+        statusDiv.textContent = msg;
+        errorDiv.textContent = ""; // clear error
+      }
+      function displayError(msg) {
+        errorDiv.textContent = msg;
+        statusDiv.textContent = ""; // clear status
+      }
+
+      // Cancel the 5-second timer
+      function cancelAdTimeout() {
+        if (adViewTimeoutId !== null) {
+          clearTimeout(adViewTimeoutId);
+          adViewTimeoutId = null;
+          displayStatus("Ad view canceled before 5 seconds.");
+        }
+      }
+
+      // This function fetches an ad from the canister, displays it,
+      // then after 5 seconds calls recordViewWithToken(tokenId) to count the view.
+      async function fetchAndDisplayAd() {
+        try {
+          // Cancel any leftover timers
+          cancelAdTimeout();
+
+          displayStatus("Initializing ad network & fetching ad...");
+          adContainer.style.display = "none";
+          adImage.src = "";
+          adLink.href = "#";
+          currentTokenId = null;
+
+          // Step 1) init the canister actor (anonymous).
+          await api.initActorUnauthenticated();
+
+          // Step 2) getNextAd => returns ?(Ad, Nat)
+          // The canister also returns an ephemeral "tokenId" that we must hold for 5s
+          // to prove a valid view occurred.
+          const projectId = "ExampleProjectMinimal"; 
+          const adType = "Horizontal Banner Portrait";
+          const result = await api.getNextAd(projectId, adType);
+
+          if (!result || result.length === 0) {
+            displayError("No available ads found (null or empty).");
+            return;
+          }
+          const [ad, tokenId] = result;
+          if (!ad) {
+            displayError("No ad object returned from canister.");
+            return;
+          }
+
+          // Step 3) Display the ad in our DOM
+          adLink.href = ad.clickUrl;
+          adImage.src = `data:image/png;base64,${ad.imageBase64}`;
+          adContainer.style.display = "block";
+          displayStatus(`Fetched Ad #${ad.id}, ephemeral token = ${tokenId}`);
+
+          currentTokenId = tokenId;
+
+          // Step 4) Start a 5-second timer. 
+          // If the user closes or navigates away earlier, we won't call recordViewWithToken.
+          adViewTimeoutId = setTimeout(async () => {
+            if (!currentTokenId) {
+              return; // possibly canceled
+            }
+            try {
+              // We assume the canister expects recordViewWithToken to finalize the view
+              // providing the ephemeral token we got from getNextAd
+              const success = await api.recordViewWithToken(currentTokenId);
+              if (success) {
+                displayStatus(`View #${ad.id} counted successfully!`);
+              } else {
+                displayError("View was NOT counted (invalid token or too soon).");
+              }
+            } catch (err) {
+              console.error("Error in recordViewWithToken:", err);
+              displayError("Error counting the view: " + err.message);
+            }
+            adViewTimeoutId = null;
+            currentTokenId = null;
+          }, 5000);
+
+        } catch (err) {
+          console.error("fetchAndDisplayAd error:", err);
+          displayError("Failed fetching ad: " + err.message);
+        }
+      }
+
+      // Attach to button
+      fetchAdButton.addEventListener("click", fetchAndDisplayAd);
+
+      // If you'd like, you can do something like window.addEventListener("beforeunload", ...)
+      // to cancel the view if user leaves. This is a minimal example though.
+
+      displayStatus("Welcome! Click 'Fetch Ad' to see how it works.");
+    })();
+  </script>
+</body>
+</html>
