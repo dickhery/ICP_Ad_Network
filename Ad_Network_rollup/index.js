@@ -206,9 +206,9 @@ export async function purchaseViews(adId, additionalViews) {
   return await adNetworkActor.purchaseViews(BigInt(adId), BigInt(additionalViews));
 }
 
-export async function createAd(imageB64, clickUrl, views, adType) {
+export async function createAd(name, imageB64, clickUrl, views, adType) {
   checkAdNetworkActor();
-  return await adNetworkActor.createAd(imageB64, clickUrl, BigInt(views), adType);
+  return await adNetworkActor.createAd(name, imageB64, clickUrl, BigInt(views), adType);
 }
 
 export async function cashOutProject(projectId) {

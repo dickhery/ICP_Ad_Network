@@ -1,6 +1,5 @@
 
 
-
 const scriptsInEvents = {
 
 	async EventSheet1_Event1_Act1(runtime, localVars)
@@ -68,7 +67,12 @@ const scriptsInEvents = {
 		self.cancelAdViewTimeout();
 	},
 
-	async Previewevents_Event11_Act1(runtime, localVars)
+	async Previewevents_Event8_Act6(runtime, localVars)
+	{
+
+	},
+
+	async Previewevents_Event20_Act1(runtime, localVars)
 	{
 		self.createNewAd();
 	},
@@ -201,52 +205,52 @@ const scriptsInEvents = {
 		self.fetchNextAd();
 	},
 
-	async Advertiseevents_Event2_Act1(runtime, localVars)
+	async Advertiseevents_Event1_Act1(runtime, localVars)
 	{
 		self.checkTokenBalance();
 	},
 
-	async Advertiseevents_Event2_Act2(runtime, localVars)
+	async Advertiseevents_Event1_Act2(runtime, localVars)
 	{
 		self.fetchMyAds();
 	},
 
-	async Advertiseevents_Event3_Act1(runtime, localVars)
+	async Advertiseevents_Event2_Act1(runtime, localVars)
 	{
 		self.cancelAdViewTimeout();
 	},
 
-	async Advertiseevents_Event12_Act1(runtime, localVars)
+	async Advertiseevents_Event11_Act1(runtime, localVars)
 	{
 		self.deleteAd();
 	},
 
-	async Advertiseevents_Event29_Act1(runtime, localVars)
+	async Advertiseevents_Event30_Act1(runtime, localVars)
 	{
 		self.copyPrincipal();
 	},
 
-	async Advertiseevents_Event31_Act2(runtime, localVars)
+	async Advertiseevents_Event32_Act2(runtime, localVars)
 	{
 		self.handleImageSelection(runtime.globalVars.ChosenFileURL);
 	},
 
-	async Advertiseevents_Event42_Act2(runtime, localVars)
+	async Advertiseevents_Event44_Act2(runtime, localVars)
 	{
 		self.topUpAdViews();
 	},
 
-	async Advertiseevents_Event50_Act2(runtime, localVars)
+	async Advertiseevents_Event52_Act2(runtime, localVars)
 	{
 		self.handleImageSelection(runtime.globalVars.ChosenFileURL, 'Portrait');
 	},
 
-	async Advertiseevents_Event51_Act2(runtime, localVars)
+	async Advertiseevents_Event53_Act2(runtime, localVars)
 	{
 		self.handleImageSelection(runtime.globalVars.ChosenFileURL, 'Landscape');
 	},
 
-	async Advertiseevents_Event53_Act7(runtime, localVars)
+	async Advertiseevents_Event55_Act7(runtime, localVars)
 	{
 		self.fetchNextAd();
 	},
@@ -313,9 +317,12 @@ const scriptsInEvents = {
 	async Dashboardevents_Event22_Act4(runtime, localVars)
 	{
 		self.fetchNextAd();
-	}
+	},
 
+	async Dashboardevents_Event24_Act6(runtime, localVars)
+	{
+
+	}
 };
 
-self.C3.ScriptsInEvents = scriptsInEvents;
-
+globalThis.C3.JavaScriptInEvents = scriptsInEvents;

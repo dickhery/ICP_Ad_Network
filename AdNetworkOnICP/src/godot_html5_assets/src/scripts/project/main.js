@@ -3,7 +3,6 @@
  *********************************/
 
 import {
-  // AD network calls:
   initActorUnauthenticated,
   initActorWithPlug,
   initActorWithInternetIdentity,
@@ -23,14 +22,12 @@ import {
   getRemainingViewsForAllAds,
   verifyPassword,
   getMyAdsLite,
-  recordViewWithToken,   // << new
-  // ICP Ledger
+  recordViewWithToken,
   initLedgerActorUnauthenticated,
   initLedgerActorWithPlug,
   initLedgerActorWithInternetIdentity,
   ledger_balanceOf,
   ledger_transfer,
-  // Principals
   AuthClient,
   Principal
 } from "./ic_ad_network_bundle.js";
@@ -40,10 +37,7 @@ let runtimeGlobal;
 let messageQueue = [];
 let isDisplayingMessage = false;
 
-// We assume 8 decimals for ICP
 const DECIMALS = 8;
-
-// NEW: We'll store the setTimeout ID in this variable
 let adViewTimeoutId = null;
 
 function stringifyWithBigInt(obj) {
@@ -83,7 +77,6 @@ self.copyPrincipal = async function () {
   }
 };
 
-/** =========== Anonymous init at startup =========== */
 self.initAdNetworkActor = async function() {
   if (authMethod) {
     setStatusMessage(`Already authenticated with ${authMethod}.`);
@@ -102,7 +95,6 @@ self.initAdNetworkActor = async function() {
   }
 };
 
-/** =========== Connect with Plug =========== */
 self.initAdNetworkWithPlug = async function() {
   if (!runtimeGlobal) return;
   if (authMethod === "InternetIdentity") {
@@ -110,13 +102,23 @@ self.initAdNetworkWithPlug = async function() {
     return;
   }
   try {
-    const ok = await initActorWithPlug();
+    // Check if Plug is available
+    if (!window.ic || !window.ic.plug) {
+      setStatusMessage("Plug wallet not detected. Please install the Plug extension.");
+      return;
+    }
+
+    // Attempt to connect to local replica first, fall back to mainnet
+    const host = window.location.hostname === "localhost" ? "http://localhost:4943" : "https://ic0.app";
+    console.log(`Initializing Plug with host: ${host}`);
+
+    const ok = await initActorWithPlug({ host });
     if (!ok) {
       runtimeGlobal.globalVars.AuthState = "Unauthenticated";
       setStatusMessage("Plug not found or user refused (for Ad Network).");
       return;
     }
-    const ledgerOk = await initLedgerActorWithPlug();
+    const ledgerOk = await initLedgerActorWithPlug({ host });
     if (!ledgerOk) {
       runtimeGlobal.globalVars.AuthState = "Unauthenticated";
       setStatusMessage("ICP Ledger with Plug not found or user refused.");
@@ -128,17 +130,16 @@ self.initAdNetworkWithPlug = async function() {
     runtimeGlobal.globalVars.AuthState = "Plug";
     authMethod = "Plug";
 
-    setStatusMessage("AdNetwork + ICP Ledger both initialized via Plug!");
-	self.cancelAdViewTimeout();
+    setStatusMessage("AdNetwork + ICP Ledger initialized via Plug!");
+    self.cancelAdViewTimeout();
     await self.fetchTrackingData();
   } catch (err) {
-    console.error(err);
+    console.error("Plug initialization error:", err);
     runtimeGlobal.globalVars.AuthState = "Unauthenticated";
     setStatusMessage("Error initializing with Plug: " + err.message);
   }
 };
 
-/** =========== Connect with Internet Identity =========== */
 self.initAdNetworkWithII = async function() {
   if (!runtimeGlobal) return;
   if (authMethod === "Plug") {
@@ -155,12 +156,12 @@ self.initAdNetworkWithII = async function() {
       runtimeGlobal.globalVars.AuthState = "InternetIdentity";
       authMethod = "InternetIdentity";
 
-      setStatusMessage("AdNetwork + ICP Ledger both initialized via Internet Identity!");
-	  self.cancelAdViewTimeout();
+      setStatusMessage("AdNetwork + ICP Ledger initialized via Internet Identity!");
+      self.cancelAdViewTimeout();
       await self.fetchTrackingData();
     } else {
       runtimeGlobal.globalVars.AuthState = "Unauthenticated";
-      setStatusMessage("Error retrieving identity after login. Possibly not authenticated?");
+      setStatusMessage("Error retrieving identity after login.");
     }
   } catch (err) {
     console.error(err);
@@ -169,7 +170,6 @@ self.initAdNetworkWithII = async function() {
   }
 };
 
-/** =========== CREATE NEW AD =========== */
 self.createNewAd = async function() {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -177,10 +177,28 @@ self.createNewAd = async function() {
     return;
   }
   try {
+    const adName = runtimeGlobal.globalVars.AdNameInput || "";
     const adTypeSelected = runtimeGlobal.globalVars.AdTypeInput || "";
     const url = runtimeGlobal.globalVars.AdClickUrlInput || "";
     const numViewsStr = runtimeGlobal.globalVars.AdViewsInput || "0";
-    const views = parseFloat(numViewsStr) || 0;
+    const views = parseInt(numViewsStr, 10) || 0;
+
+    if (!adName) {
+      setStatusMessage("Please enter an ad name.");
+      return;
+    }
+    if (!adTypeSelected || adTypeSelected === "Choose Ad Type") {
+      setStatusMessage("Please select an ad type.");
+      return;
+    }
+    if (!url) {
+      setStatusMessage("Please enter a click URL.");
+      return;
+    }
+    if (views <= 0) {
+      setStatusMessage("Please enter a valid number of views greater than 0.");
+      return;
+    }
 
     const singleB64 = runtimeGlobal.globalVars.AdBase64Input || "";
     const b64Portrait = runtimeGlobal.globalVars.AdBase64InputPortrait || "";
@@ -212,8 +230,8 @@ self.createNewAd = async function() {
         setStatusMessage("Please upload BOTH Portrait and Landscape images first!");
         return;
       }
-      const adIdPortrait = await createAd(b64Portrait, url, views, adTypeSelected + " Portrait");
-      const adIdLandscape = await createAd(b64Landscape, url, views, adTypeSelected + " Landscape");
+      const adIdPortrait = await createAd(adName + " Portrait", b64Portrait, url, views, adTypeSelected + " Portrait");
+      const adIdLandscape = await createAd(adName + " Landscape", b64Landscape, url, views, adTypeSelected + " Landscape");
       setStatusMessage(`Created two ads: ID #${adIdPortrait}, #${adIdLandscape}`);
       runtimeGlobal.globalVars.LastCreatedAdId = `Portrait: ${adIdPortrait}, Landscape: ${adIdLandscape}`;
       await self.checkTokenBalance();
@@ -222,7 +240,7 @@ self.createNewAd = async function() {
         setStatusMessage("Please upload an image!");
         return;
       }
-      const adId = await createAd(singleB64, url, views, adTypeSelected);
+      const adId = await createAd(adName, singleB64, url, views, adTypeSelected);
       runtimeGlobal.globalVars.LastCreatedAdId = adId;
       setStatusMessage("Created new Ad with ID: " + adId);
       await self.checkTokenBalance();
@@ -232,17 +250,13 @@ self.createNewAd = async function() {
     runtimeGlobal.globalVars.AdBase64InputPortrait = "";
     runtimeGlobal.globalVars.AdBase64InputLandscape = "";
     await self.fetchTrackingData();
-	self.resetAllInputs();
+    self.resetAllInputs();
   } catch (err) {
     console.error("createAd error:", err);
     setStatusMessage("Error creating ad: " + err.message);
   }
 };
 
-/**
- * =========== FETCH NEXT AD ===========
- * Returns [adObject, tokenId] or null. We'll wait 5 seconds to call recordViewWithToken.
- */
 self.fetchNextAd = async function() {
   if (!runtimeGlobal) return;
   try {
@@ -260,13 +274,11 @@ self.fetchNextAd = async function() {
     runtimeGlobal.globalVars.CurrentAdClickUrl = ad.clickUrl;
     setStatusMessage(`Fetched Ad #${ad.id} (served: ${ad.viewsServed}), token: ${tokenId}`);
 
-    // NEW: If there's a leftover timer, clear it:
     if (adViewTimeoutId !== null) {
       clearTimeout(adViewTimeoutId);
       adViewTimeoutId = null;
     }
 
-    // Start a new 5s timer
     adViewTimeoutId = setTimeout(async () => {
       try {
         const success = await recordViewWithToken(tokenId);
@@ -279,7 +291,7 @@ self.fetchNextAd = async function() {
         console.error("recordViewWithToken error:", err);
         setStatusMessage("Error recording ad view: " + err.message);
       }
-      adViewTimeoutId = null; // done
+      adViewTimeoutId = null;
     }, 5000);
 
   } catch (err) {
@@ -288,7 +300,6 @@ self.fetchNextAd = async function() {
   }
 };
 
-/** NEW: A function to cancel the pending ad view timeout. */
 self.cancelAdViewTimeout = function() {
   if (adViewTimeoutId !== null) {
     clearTimeout(adViewTimeoutId);
@@ -297,7 +308,6 @@ self.cancelAdViewTimeout = function() {
   }
 };
 
-/** fetchMyAds etc. remain the same... */
 self.fetchMyAds = async function() {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -327,7 +337,7 @@ self.populateMyAdsList = function() {
   listObj.clear();
   const userAdsStr = runtimeGlobal.globalVars.MyAdsJson || "";
   if (!userAdsStr) {
-    setStatusMessage("No user ads found.");
+    setStatusMessage("No user ads found in MyAdsJson.");
     return;
   }
   let userAds;
@@ -339,14 +349,12 @@ self.populateMyAdsList = function() {
     return;
   }
   userAds.forEach(ad => {
-    const remainingViews = ad.viewsPurchased - ad.viewsServed;
-    const itemText = `Ad #${ad.id} | Remaining Views: ${remainingViews}`;
+    const remainingViews = Number(ad.viewsPurchased) - Number(ad.viewsServed);
+    const itemText = `${ad.name} (${remainingViews} views remaining, ${ad.adType})`;
     listObj.addItem(`${ad.id}|${itemText}`);
   });
 };
 
-
-/** =========== PURCHASE MORE VIEWS =========== */
 self.topUpAdViews = async function() {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -361,7 +369,7 @@ self.topUpAdViews = async function() {
     const rawCost = BigInt(Math.round(costTokens * 10 ** DECIMALS));
     if (rawCost > 0n) {
       setStatusMessage(`Transferring ${costTokens} ICP for additional views...`);
-      const pid = "j24mu-2qaaa-aaaal-aae5a-cai"; 
+      const pid = "j24mu-2qaaa-aaaal-aae5a-cai";
       const tResult = await ledger_transfer({
         fromSubaccount: null,
         toPrincipal: Principal.fromText(pid),
@@ -377,7 +385,7 @@ self.topUpAdViews = async function() {
     if (success) {
       setStatusMessage(`Successfully topped up Ad #${adIdStr} with ${additionalViews} views.`);
       await self.checkTokenBalance();
-	  self.resetAllInputs();
+      self.resetAllInputs();
     } else {
       setStatusMessage(`purchaseViews() returned false. Possibly not your ad?`);
     }
@@ -387,7 +395,6 @@ self.topUpAdViews = async function() {
   }
 };
 
-/** =========== Official Ledger Transfer =========== */
 self.transferTokens = async function () {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -417,7 +424,6 @@ self.transferTokens = async function () {
   }
 };
 
-/** =========== Show user’s ICP balance from the ledger =========== */
 self.checkTokenBalance = async function() {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -445,7 +451,6 @@ self.checkTokenBalance = async function() {
   }
 };
 
-/** =========== CASH OUT =========== */
 self.cashOutProjectViews = async function(projectId) {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -488,7 +493,6 @@ self.cashOutAllProjectsViews = async function() {
   }
 };
 
-/** =========== Misc =========== */
 self.registerProjectInCanister = async function() {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -496,7 +500,6 @@ self.registerProjectInCanister = async function() {
     return;
   }
   try {
-    // Ensure the latest projectId is read from the input field
     runtimeGlobal.globalVars.projectId = runtimeGlobal.objects.TextInput_RegisterProjectId.getFirstInstance().text;
 
     const pid = runtimeGlobal.globalVars.projectId.trim();
@@ -521,28 +524,44 @@ self.registerProjectInCanister = async function() {
   }
 };
 
-
 self.handleImageSelection = async function(fileUrl, orientation = "") {
   if (!runtimeGlobal) return;
   try {
     const resp = await fetch(fileUrl);
+    if (!resp.ok) {
+      throw new Error(`Fetch failed with status: ${resp.status}`);
+    }
     const blob = await resp.blob();
     const reader = new FileReader();
     reader.onloadend = () => {
       const dataUrl = reader.result;
+      if (!dataUrl || typeof dataUrl !== "string") {
+        setStatusMessage("Failed to convert image to base64: Invalid data.");
+        return;
+      }
       const base64Str = dataUrl.replace(/^data:.+;base64,/, "");
+      if (!base64Str) {
+        setStatusMessage("Base64 string is empty after conversion.");
+        return;
+      }
       if (orientation === "Portrait") {
         runtimeGlobal.globalVars.AdBase64InputPortrait = base64Str;
+        console.log("Portrait Base64 length:", base64Str.length);
       } else if (orientation === "Landscape") {
         runtimeGlobal.globalVars.AdBase64InputLandscape = base64Str;
+        console.log("Landscape Base64 length:", base64Str.length);
       } else {
         runtimeGlobal.globalVars.AdBase64Input = base64Str;
+        console.log("Single Base64 length:", base64Str.length);
       }
-      setStatusMessage("File chosen and converted to base64 successfully.");
+      setStatusMessage("File converted to base64 successfully.");
+    };
+    reader.onerror = () => {
+      setStatusMessage("Error reading file as base64.");
     };
     reader.readAsDataURL(blob);
   } catch (err) {
-    console.error(err);
+    console.error("handleImageSelection error:", err);
     setStatusMessage("Error converting file to base64: " + err.message);
   }
 };
@@ -554,11 +573,9 @@ runOnStartup(async (runtime) => {
   await self.fetchTrackingData();
 });
 
-/** =========== fetchTrackingData =========== */
 self.fetchTrackingData = async function() {
   if (!runtimeGlobal) return;
   if (!authMethod) {
-    // remain anonymous if you want
     return;
   }
   try {
@@ -582,7 +599,6 @@ self.fetchTrackingData = async function() {
   }
 };
 
-/** fetchRemainingViewsForAd, fetchTotalViewsForProject, etc. are all unchanged. */
 self.fetchRemainingViewsForAd = async function(adId) {
   if (!runtimeGlobal) return;
   if (!authMethod) {
@@ -635,7 +651,7 @@ self.logout = async function() {
     runtimeGlobal.globalVars.AuthState = "Unauthenticated";
     runtimeGlobal.globalVars.currentPrincipal = "";
     setStatusMessage("Logged out successfully.");
-	self.cancelAdViewTimeout();
+    self.cancelAdViewTimeout();
   } catch (err) {
     console.error("Logout error:", err);
     setStatusMessage("Error during logout: " + err.message);
@@ -669,10 +685,11 @@ self.resetAllInputs = function() {
     }
   });
 
-  // Instead of using JavaScript directly, set a global variable:
-  runtimeGlobal.globalVars.ResetAdTypeSelection = true;
+  const listAdType = runtimeGlobal.objects.List_AdType?.getFirstInstance();
+  if (listAdType) {
+    listAdType.setSelectedIndex(0);
+  }
 };
-
 
 self.deleteAd = async function() {
   if (!runtimeGlobal) return;
@@ -683,20 +700,18 @@ self.deleteAd = async function() {
 
   try {
     const rawValue = runtimeGlobal.globalVars.AdIDInput;
-const adIdStr = rawValue != null ? String(rawValue) : "";
+    const adIdStr = rawValue != null ? String(rawValue) : "";
 
-// Now check if it's empty
-if (adIdStr.trim() === "") {
-  setStatusMessage("No valid Ad ID found to delete.");
-  return;
-}
+    if (adIdStr.trim() === "") {
+      setStatusMessage("No valid Ad ID found to delete.");
+      return;
+    }
 
     setStatusMessage(`Attempting to delete Ad #${adIdStr}...`);
     const success = await deleteAd(adIdStr);
 
     if (success) {
       setStatusMessage(`Ad #${adIdStr} deleted successfully.`);
-      // Re-fetch ads to update the UI
       await self.fetchMyAds();
     } else {
       setStatusMessage(`Failed to delete Ad #${adIdStr}. Possibly not your ad or not found.`);
@@ -707,13 +722,6 @@ if (adIdStr.trim() === "") {
   }
 };
 
-
-
-/* =======================
-   NEW: Password Verification Function
-   ======================= */
-
-// Function to verify password and set isBetaTester
 self.checkPassword = async function() {
   if (!runtimeGlobal) return;
   try {
@@ -722,7 +730,7 @@ self.checkPassword = async function() {
     runtimeGlobal.globalVars.isBetaTester = isValid;
     if (isValid) {
       setStatusMessage("Password verified! Access granted.");
-	  self.cancelAdViewTimeout();
+      self.cancelAdViewTimeout();
     } else {
       setStatusMessage("Invalid password. Access denied.");
     }

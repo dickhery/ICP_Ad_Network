@@ -20,6 +20,7 @@ actor AdNetwork {
 
   public type Ad = {
     id : Nat;
+    name : Text;
     advertiser : Principal;
     imageBase64 : Text;
     clickUrl : Text;
@@ -30,6 +31,7 @@ actor AdNetwork {
 
   public type AdLite = {
     id : Nat;
+    name : Text;
     advertiser : Principal;
     clickUrl : Text;
     viewsPurchased : Nat;
@@ -78,7 +80,7 @@ actor AdNetwork {
         caller = caller;
         method = method;
         details = details;
-      }]
+      }],
     );
     Debug.print("LOG: " # method # " :: " # details);
   };
@@ -88,7 +90,7 @@ actor AdNetwork {
     return Array.tabulate<Ad>(
       a.size(),
       func(j : Nat) : Ad {
-        if (j == i) { newVal } else { a[j] }
+        if (j == i) { newVal } else { a[j] };
       },
     );
   };
@@ -98,7 +100,7 @@ actor AdNetwork {
     return Array.tabulate<Project>(
       a.size(),
       func(j : Nat) : Project {
-        if (j == i) { newVal } else { a[j] }
+        if (j == i) { newVal } else { a[j] };
       },
     );
   };
@@ -144,18 +146,20 @@ actor AdNetwork {
       func(ad) {
         {
           id = ad.id;
+          name = ad.name;
           advertiser = ad.advertiser;
           clickUrl = ad.clickUrl;
           viewsPurchased = ad.viewsPurchased;
           viewsServed = ad.viewsServed;
           adType = ad.adType;
-        }
-      }
+        };
+      },
     );
     userAdsLite;
   };
 
   public shared (msg) func createAd(
+    name : Text,
     imageBase64 : Text,
     clickUrl : Text,
     viewsToPurchase : Nat,
@@ -164,6 +168,7 @@ actor AdNetwork {
     let caller = msg.caller;
     let newAd : Ad = {
       id = nextAdId;
+      name = name;
       advertiser = caller;
       imageBase64 = imageBase64;
       clickUrl = clickUrl;
@@ -173,13 +178,7 @@ actor AdNetwork {
     };
     ads := Array.append(ads, [newAd]);
     nextAdId += 1;
-
-    logAction(
-      "createAd",
-      "Created Ad #" # Nat.toText(newAd.id)
-        # ", views=" # Nat.toText(viewsToPurchase),
-      caller,
-    );
+    logAction("createAd", "Created Ad '" # name # "' with ID #" # Nat.toText(newAd.id) # ", views=" # Nat.toText(viewsToPurchase), caller);
     return newAd.id;
   };
 
@@ -209,7 +208,7 @@ actor AdNetwork {
 
     let availableAds = Array.filter<Ad>(
       ads,
-      func(ad) { ad.viewsServed < ad.viewsPurchased and ad.adType == adType }
+      func(ad) { ad.viewsServed < ad.viewsPurchased and ad.adType == adType },
     );
     if (availableAds.size() == 0) { return null };
 
@@ -224,7 +223,7 @@ actor AdNetwork {
       case (?lastId) {
         let nextAdOpt = Array.find<Ad>(
           sortedAvailable,
-          func(ad) { ad.id > lastId }
+          func(ad) { ad.id > lastId },
         );
         switch (nextAdOpt) {
           case null {
@@ -261,12 +260,12 @@ actor AdNetwork {
     var idxOpt : ?Nat = null;
     var i = 0;
     let size = ephemeralRecords.size();
-    
+
     label l while (i < size and idxOpt == null) {
-        if (ephemeralRecords[i].tokenId == tokenId) {
-            idxOpt := ?i;
-        };
-        i += 1;
+      if (ephemeralRecords[i].tokenId == tokenId) {
+        idxOpt := ?i;
+      };
+      i += 1;
     };
 
     switch (idxOpt) {
@@ -330,6 +329,7 @@ actor AdNetwork {
     if (ad.viewsServed >= ad.viewsPurchased) { return null };
     let updatedAd = {
       id = ad.id;
+      name = ad.name;
       advertiser = ad.advertiser;
       imageBase64 = ad.imageBase64;
       clickUrl = ad.clickUrl;
@@ -372,6 +372,7 @@ actor AdNetwork {
         } else {
           let updatedAd = {
             id = oldAd.id;
+            name = oldAd.name;
             advertiser = oldAd.advertiser;
             imageBase64 = oldAd.imageBase64;
             clickUrl = oldAd.clickUrl;
@@ -444,7 +445,12 @@ actor AdNetwork {
             currentViews;
           };
           case (#Err(errMsg)) {
-            let revertProj = { id = proj.id; owner = proj.owner; views = currentViews; contact = proj.contact };
+            let revertProj = {
+              id = proj.id;
+              owner = proj.owner;
+              views = currentViews;
+              contact = proj.contact;
+            };
             projects := replaceProject(projects, idx, revertProj);
 
             let errorMsg = "cashOutProject error: " # errMsg;
@@ -613,7 +619,7 @@ actor AdNetwork {
     Array.foldLeft<Ad, Nat>(
       userAds,
       0,
-      func(acc, ad) { acc + (ad.viewsPurchased - ad.viewsServed) }
+      func(acc, ad) { acc + (ad.viewsPurchased - ad.viewsServed) },
     );
   };
 
@@ -622,40 +628,39 @@ actor AdNetwork {
 
     let idxOpt = findAdPosition(ads, func(x) { x.id == adId });
     switch (idxOpt) {
-        case null {
-            // No ad with that ID found
-            return false;
-        };
-        case (?i) {
-            let ad = ads[i];
-            if (ad.advertiser != caller) {
-                // The caller does not own this ad
-                Debug.print("Unauthorized delete attempt by " # Principal.toText(caller));
-                return false;
-            } else {
-                // Remove the ad from the ads array by skipping index i
-                ads := Array.tabulate<Ad>(
-                    ads.size() - 1,
-                    func(j : Nat) : Ad {
-                        if (j < i) {
-                            ads[j];
-                        } else {
-                            ads[j + 1];
-                        }
-                    },
-                );
+      case null {
+        // No ad with that ID found
+        return false;
+      };
+      case (?i) {
+        let ad = ads[i];
+        if (ad.advertiser != caller) {
+          // The caller does not own this ad
+          Debug.print("Unauthorized delete attempt by " # Principal.toText(caller));
+          return false;
+        } else {
+          // Remove the ad from the ads array by skipping index i
+          ads := Array.tabulate<Ad>(
+            ads.size() - 1,
+            func(j : Nat) : Ad {
+              if (j < i) {
+                ads[j];
+              } else {
+                ads[j + 1];
+              };
+            },
+          );
 
-                logAction(
-                    "deleteAd",
-                    "Deleted ad #" # Nat.toText(adId),
-                    caller
-                );
-                return true;
-            };
+          logAction(
+            "deleteAd",
+            "Deleted ad #" # Nat.toText(adId),
+            caller,
+          );
+          return true;
         };
+      };
     };
-};
-
+  };
 
   public query func verify_password(inputPassword : Text) : async Bool {
     inputPassword == storedPassword;
@@ -664,4 +669,4 @@ actor AdNetwork {
   public shared func getLogs() : async [LogEntry] {
     logs;
   };
-}
+};

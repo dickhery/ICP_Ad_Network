@@ -4,6 +4,7 @@
 export const idlFactory = ({ IDL }) => {
   const Ad = IDL.Record({
     'id' : IDL.Nat,
+    'name' : IDL.Text,
     'viewsServed' : IDL.Nat,
     'adType' : IDL.Text,
     'imageBase64' : IDL.Text,
@@ -25,6 +26,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const AdLite = IDL.Record({
     'id' : IDL.Nat,
+    'name' : IDL.Text,
     'viewsServed' : IDL.Nat,
     'adType' : IDL.Text,
     'advertiser' : IDL.Principal,
@@ -35,7 +37,7 @@ export const idlFactory = ({ IDL }) => {
     'cashOutAllProjects' : IDL.Func([], [IDL.Nat], []),
     'cashOutProject' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'createAd' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Nat, IDL.Text],
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, IDL.Text],
         [IDL.Nat],
         [],
       ),

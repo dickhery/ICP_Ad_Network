@@ -22811,6 +22811,7 @@ async function _deleteStorage(storage) {
 const idlFactory$1 = ({ IDL }) => {
   const Ad = IDL.Record({
     'id' : IDL.Nat,
+    'name' : IDL.Text,
     'viewsServed' : IDL.Nat,
     'adType' : IDL.Text,
     'imageBase64' : IDL.Text,
@@ -22832,6 +22833,7 @@ const idlFactory$1 = ({ IDL }) => {
   });
   const AdLite = IDL.Record({
     'id' : IDL.Nat,
+    'name' : IDL.Text,
     'viewsServed' : IDL.Nat,
     'adType' : IDL.Text,
     'advertiser' : IDL.Principal,
@@ -22842,7 +22844,7 @@ const idlFactory$1 = ({ IDL }) => {
     'cashOutAllProjects' : IDL.Func([], [IDL.Nat], []),
     'cashOutProject' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'createAd' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Nat, IDL.Text],
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, IDL.Text],
         [IDL.Nat],
         [],
       ),
@@ -23109,9 +23111,9 @@ async function purchaseViews(adId, additionalViews) {
   return await adNetworkActor.purchaseViews(BigInt(adId), BigInt(additionalViews));
 }
 
-async function createAd(imageB64, clickUrl, views, adType) {
+async function createAd(name, imageB64, clickUrl, views, adType) {
   checkAdNetworkActor();
-  return await adNetworkActor.createAd(imageB64, clickUrl, BigInt(views), adType);
+  return await adNetworkActor.createAd(name, imageB64, clickUrl, BigInt(views), adType);
 }
 
 async function cashOutProject(projectId) {
