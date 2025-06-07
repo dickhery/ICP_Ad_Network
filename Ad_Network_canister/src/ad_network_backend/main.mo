@@ -203,58 +203,38 @@ actor AdNetwork {
    * Returns (ad, tokenId).
    * The front end should store tokenId in order to call recordViewWithToken later.
    */
-  public shared func getNextAd(projectId : Text, adType : Text) : async ?(Ad, Nat) {
-    if (ads.size() == 0) { return null };
+  public query func getNextAd(projectId : Text, adType : Text) : async ?(Ad, Text) {
+    switch (DMap.get(projects, projectId)) {
+        case null return null;
+        case (?project) {
+            let availableAds = Buffer.fromArray<Ad>(
+                Iter.toArray(
+                    Iter.filter(
+                        DMap.entries(ads),
+                        func((id, ad) : (Text, Ad)) {
+                            ad.viewsPurchased > ad.viewsServed and (adType == "" or ad.adType == adType)
+                        }
+                    )
+                )
+            );
 
-    let availableAds = Array.filter<Ad>(
-      ads,
-      func(ad) { ad.viewsServed < ad.viewsPurchased and ad.adType == adType },
-    );
-    if (availableAds.size() == 0) { return null };
+            if (availableAds.size() == 0) return null;
 
-    let sortedAvailable = sortAdsAsc(availableAds);
+            // Round-robin selection
+            let lastIndex = switch (DMap.get(lastAdIndex, projectId)) {
+                case null 0;
+                case (?idx) idx;
+            };
 
-    let chosen = switch (lastServedAdId) {
-      case null {
-        let c = sortedAvailable[0];
-        lastServedAdId := ?c.id;
-        c;
-      };
-      case (?lastId) {
-        let nextAdOpt = Array.find<Ad>(
-          sortedAvailable,
-          func(ad) { ad.id > lastId },
-        );
-        switch (nextAdOpt) {
-          case null {
-            let c2 = sortedAvailable[0];
-            lastServedAdId := ?c2.id;
-            c2;
-          };
-          case (?foundAd) {
-            lastServedAdId := ?foundAd.id;
-            foundAd;
-          };
+            let nextIndex = (lastIndex + 1) % availableAds.size();
+            DMap.put(lastAdIndex, projectId, nextIndex);
+
+            let ad = availableAds.get(nextIndex);
+            let tokenId = generateTokenId(projectId, ad.id);
+            return ?(ad, tokenId);
         };
-      };
     };
-
-    let nowNs : Nat64 = Nat64.fromIntWrap(Time.now());
-    let token = nextTokenId;
-    nextTokenId += 1;
-
-    ephemeralRecords := Array.append<EphemeralRecord>(
-      ephemeralRecords,
-      [{
-        tokenId = token;
-        adId = chosen.id;
-        projectId = projectId;
-        createdAt = nowNs;
-        used = false;
-      }],
-    );
-    return ?(chosen, token);
-  };
+};
 
   public shared (msg) func recordViewWithToken(tokenId : Nat) : async Bool {
     var idxOpt : ?Nat = null;

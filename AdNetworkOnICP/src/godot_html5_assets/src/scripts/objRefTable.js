@@ -178,7 +178,7 @@ self.C3_JsPropNameTable = [
 	{Sprite2: 0},
 	{Sprite_Register: 0},
 	{Sprite_PreviewButton: 0},
-	{Sprite3: 0},
+	{Sprite_YourAd_Banner: 0},
 	{Sprite_ICP_Symbol: 0},
 	{Sprite_Purchase_Views: 0},
 	{Sprite_Go_Back: 0},
@@ -218,6 +218,7 @@ self.C3_JsPropNameTable = [
 	{Button_DeleteAd: 0},
 	{TextInput_AdName: 0},
 	{Sprite_required_adName: 0},
+	{Sprite_YourAd_Portrait_Landscape: 0},
 	{AdBase64Input: 0},
 	{AdClickUrlInput: 0},
 	{AdViewsInput: 0},
@@ -316,7 +317,7 @@ self.InstanceType = {
 	Sprite2: class extends self.ISpriteInstance {},
 	Sprite_Register: class extends self.ISpriteInstance {},
 	Sprite_PreviewButton: class extends self.ISpriteInstance {},
-	Sprite3: class extends self.ISpriteInstance {},
+	Sprite_YourAd_Banner: class extends self.ISpriteInstance {},
 	Sprite_ICP_Symbol: class extends self.ISpriteInstance {},
 	Sprite_Purchase_Views: class extends self.ISpriteInstance {},
 	Sprite_Go_Back: class extends self.ISpriteInstance {},
@@ -355,5 +356,6 @@ self.InstanceType = {
 	Sprite_required_imageLandscape: class extends self.ISpriteInstance {},
 	Button_DeleteAd: class extends self.ISpriteInstance {},
 	TextInput_AdName: class extends self.ITextInputInstance {},
-	Sprite_required_adName: class extends self.ISpriteInstance {}
+	Sprite_required_adName: class extends self.ISpriteInstance {},
+	Sprite_YourAd_Portrait_Landscape: class extends self.ISpriteInstance {}
 }
